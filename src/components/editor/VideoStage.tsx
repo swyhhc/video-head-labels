@@ -1,15 +1,18 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 
+import type { Detection } from "../../features/detection/types";
 import { fitVideoContain, videoToScreenPoint } from "../../features/overlay/canvasCoordinates";
 import { LabelRenderer, type LabelDrawingContext } from "../../features/overlay/LabelRenderer";
 import type { LabelSubject, Size } from "../../features/overlay/types";
 import type { VideoMetadata, VideoSource } from "../../features/media/types";
 
 interface VideoStageProps {
+  detections?: Detection[];
   metadata: VideoMetadata | null;
   source: VideoSource;
+  videoRef?: RefObject<HTMLVideoElement | null>;
 }
 
 const previewRenderer = new LabelRenderer();
@@ -36,7 +39,32 @@ export function renderDevelopmentPreview(
   });
 }
 
-export function VideoStage({ metadata, source }: VideoStageProps) {
+export function renderDetections(
+  context: LabelDrawingContext,
+  detections: Detection[],
+  video: Size,
+  viewport: Size,
+) {
+  const videoRect = fitVideoContain(video, viewport);
+  const subjects: LabelSubject[] = detections.map((detection) => ({
+    id: detection.detectionId,
+    labelZh: detection.category === "person" ? "人物" : detection.category,
+    labelEn: detection.category,
+    category: detection.category,
+    confidence: detection.confidence,
+    anchor: videoToScreenPoint(
+      {
+        x: detection.box.x + detection.box.width / 2,
+        y: detection.box.y,
+      },
+      videoRect,
+    ),
+  }));
+
+  previewRenderer.render(context, subjects, { ...viewport, preset: "data" });
+}
+
+export function VideoStage({ detections = [], metadata, source, videoRef }: VideoStageProps) {
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -45,7 +73,7 @@ export function VideoStage({ metadata, source }: VideoStageProps) {
     const canvas = canvasRef.current;
     if (!stage || !canvas || !metadata) return;
 
-    function drawAlignmentMarker() {
+    function drawOverlay() {
       if (!stage || !canvas || !metadata) return;
       const bounds = stage.getBoundingClientRect();
       if (bounds.width <= 0 || bounds.height <= 0) return;
@@ -61,22 +89,23 @@ export function VideoStage({ metadata, source }: VideoStageProps) {
       context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
       context.clearRect(0, 0, bounds.width, bounds.height);
 
-      renderDevelopmentPreview(
+      renderDetections(
         context,
+        detections,
         { width: metadata.width, height: metadata.height },
         { width: bounds.width, height: bounds.height },
       );
     }
 
-    drawAlignmentMarker();
-    const observer = new ResizeObserver(drawAlignmentMarker);
+    drawOverlay();
+    const observer = new ResizeObserver(drawOverlay);
     observer.observe(stage);
     return () => observer.disconnect();
-  }, [metadata]);
+  }, [detections, metadata]);
 
   return (
     <div ref={stageRef} className="relative h-full min-h-[420px] w-full overflow-hidden rounded-xl bg-black">
-      <video className="absolute inset-0 h-full w-full object-contain" src={source.objectUrl} controls playsInline />
+      <video ref={videoRef} className="absolute inset-0 h-full w-full object-contain" src={source.objectUrl} controls playsInline />
       <canvas ref={canvasRef} aria-label="视频标签叠加层" className="pointer-events-none absolute inset-0 h-full w-full" />
     </div>
   );
