@@ -180,9 +180,9 @@ export function VideoWorkspace() {
             <VideoStage detections={visibleDetections} metadata={metadata} onTimeChange={setPlaybackTime} source={source} videoRef={videoRef} />
           </div>
         </section>
-        <aside className="flex h-full min-h-0 flex-col overflow-hidden border-l border-[#E8E8E5] bg-white p-6">
+        <aside className="flex h-full min-h-0 flex-col overflow-hidden border-l border-[#E8E8E5] bg-white p-4">
           <h2 className="text-base font-semibold">当前画面</h2>
-          <div className="mt-4 min-h-0 flex-1 overflow-hidden">
+          <div className="mt-4 min-h-24 flex-1 overflow-hidden">
             {visibleDetections.length > 0 ? (
               <ul className="h-full space-y-2 overflow-y-auto pr-1">
                 {visibleDetections.map((detection) => (
@@ -199,7 +199,7 @@ export function VideoWorkspace() {
               </div>
             )}
           </div>
-          <section className="mt-5 shrink-0 border-t border-[#E8E8E5] pt-5">
+          <section className="mt-3 shrink-0 border-t border-[#E8E8E5] pt-3">
             <h3 className="text-sm font-medium">视频信息</h3>
             {isInspecting ? <p className="mt-3 text-xs text-[#777777]">正在读取本地视频信息…</p> : metadata ? <VideoInfo metadata={metadata} /> : <p className="mt-3 text-xs text-[#D94A4A]">{error ?? "无法读取视频信息"}</p>}
           </section>
@@ -237,13 +237,13 @@ function AnalysisPanel({ error, loadMetrics, onAnalyze, progress, status, summar
   const busy = status === "loading" || status === "analyzing";
   const statusText = status === "loading" ? "正在 Worker 中加载模型…" : status === "analyzing" ? `正在分析 ${progress.completed} / ${progress.total}` : status === "completed" ? "分析完成" : status === "failed" ? "分析失败" : "模型尚未加载";
   return (
-    <section className="mt-5 shrink-0 border-t border-[#E8E8E5] pt-5">
+    <section className="mt-3 shrink-0 border-t border-[#E8E8E5] pt-3">
       <h3 className="text-sm font-medium">本地 AI 分析</h3>
       <p className="mt-2 text-xs leading-5 text-[#777777]">{statusText}</p>
-      <button type="button" disabled={busy} onClick={() => onAnalyze("auto")} className="mt-3 w-full rounded-[10px] bg-[#6ED3CF] px-4 py-2.5 text-sm font-medium text-[#113B39] disabled:opacity-50">开始本地分析</button>
-      <button type="button" disabled={busy} onClick={() => onAnalyze("wasm")} className="mt-2 w-full rounded-[10px] border border-[#E8E8E5] px-4 py-2 text-xs disabled:opacity-50">使用 WASM 兼容路径</button>
+      <button type="button" disabled={busy} onClick={() => onAnalyze("auto")} className="mt-2 w-full rounded-[10px] bg-[#6ED3CF] px-4 py-2.5 text-sm font-medium text-[#113B39] disabled:opacity-50">开始本地分析</button>
+      <button type="button" disabled={busy} onClick={() => onAnalyze("wasm")} className="mt-1 w-full rounded-[10px] border border-[#E8E8E5] px-4 py-2 text-xs disabled:opacity-50">使用 WASM 兼容路径</button>
       {loadMetrics ? (
-        <dl className="mt-4 grid grid-cols-[92px_1fr] gap-x-2 gap-y-2 text-xs">
+        <dl className="mt-2 grid grid-cols-[92px_1fr] gap-x-2 gap-y-2 text-xs">
           <dt className="text-[#A3A3A3]">实际后端</dt><dd>{loadMetrics.backend.toUpperCase()}</dd>
           <dt className="text-[#A3A3A3]">模型下载</dt><dd>{formatMs(loadMetrics.modelDownloadMs)}</dd>
           <dt className="text-[#A3A3A3]">模型初始化</dt><dd>{formatMs(loadMetrics.initializationMs)}</dd>
