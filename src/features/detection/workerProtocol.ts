@@ -6,5 +6,5 @@ export type DetectionWorkerRequest =
 
 export type DetectionWorkerResponse =
   | { type: "initialized"; requestId: number; metrics: DetectorLoadMetrics }
-  | { type: "detected"; requestId: number; detections: Detection[]; inferenceMs: number; maxConfidence: number }
+  | { type: "detected"; requestId: number; detections: Detection[]; inferenceMs: number; appearanceMs: number; maxConfidence: number }
   | { type: "failed"; requestId: number; message: string; backend: DetectionBackend | null };

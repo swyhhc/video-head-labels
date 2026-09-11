@@ -16,6 +16,8 @@ export interface Detection {
   confidence: number;
   /** Coordinates in the original video pixel space. */
   box: DetectionBox;
+  /** Optional lightweight appearance descriptor produced locally for tracking. */
+  appearance?: readonly number[];
 }
 
 export interface MemoryObservation {
@@ -35,6 +37,7 @@ export interface DetectorLoadMetrics {
 export interface DetectorRunResult {
   detections: Detection[];
   inferenceMs: number;
+  appearanceMs?: number;
   maxConfidence: number;
 }
 

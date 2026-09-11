@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   calculateLetterbox,
   decodeYoloOutput,
+  videoBoxToLetterbox,
 } from "../../src/features/detection/browserDetector";
 
 describe("browser detector geometry", () => {
@@ -43,6 +44,13 @@ describe("browser detector geometry", () => {
         box: { x: 864, y: 348, width: 192, height: 384 },
       },
     ]);
+  });
+
+  it("maps an original-video detection crop onto the reused letterbox pixels", () => {
+    expect(videoBoxToLetterbox(
+      { x: 300, y: 150, width: 120, height: 240 },
+      { inputSize: 640, scaledWidth: 640, scaledHeight: 360, padX: 0, padY: 140, scale: 1 / 3 },
+    )).toEqual({ x: 100, y: 190, width: 40, height: 80 });
   });
 
   it("suppresses overlapping boxes from the same class", () => {

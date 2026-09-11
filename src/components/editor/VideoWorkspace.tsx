@@ -171,7 +171,7 @@ export function VideoWorkspace() {
         const bitmap = await createImageBitmap(video);
         const result = await client.detect(bitmap, metadata.width, metadata.height, index);
         if (analysisId.current !== currentAnalysis) return;
-        nextFrames.push({ time: times[index], detections: result.detections, inferenceMs: result.inferenceMs });
+        nextFrames.push({ time: times[index], detections: result.detections, inferenceMs: result.inferenceMs, appearanceMs: result.appearanceMs });
         inferenceMs += result.inferenceMs;
         totalDetections += result.detections.length;
         setFrames([...nextFrames]);

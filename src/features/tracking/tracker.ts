@@ -1,5 +1,6 @@
 import type { Detection, DetectionBox } from "../detection/types";
 import type { DetectionFrame } from "../detection/sampledVideoDetection";
+import { compareAppearance, updateTrackAppearance } from "./appearance";
 import { TRACKER_CONFIG } from "./config";
 import type {
   Track,
@@ -60,6 +61,9 @@ export function trackDetectionFrames(
       const detection = frame.detections[match.detectionIndex];
       track.positions.push(positionFrom(detection, frame.time));
       track.confidence = averageConfidence(track.positions);
+      if (detection.appearance) {
+        track.appearance = updateTrackAppearance(track.appearance, detection.appearance, resolved.appearanceEmaAlpha);
+      }
       track.lifecycle = track.positions.length === 1 ? "new" : "active";
       track.missedFrames = 0;
       matchedTrackIndexes.add(actualTrackIndex);
@@ -83,6 +87,9 @@ export function trackDetectionFrames(
         confidence: detection.confidence,
         lifecycle: "new",
         positions: [positionFrom(detection, frame.time)],
+        appearance: detection.appearance
+          ? updateTrackAppearance(null, detection.appearance, resolved.appearanceEmaAlpha)
+          : undefined,
         missedFrames: 0,
       };
       nextTrackNumber += 1;
@@ -104,6 +111,7 @@ export function trackDetectionFrames(
       confidence: track.confidence,
       lifecycle: track.lifecycle,
       positions: track.positions,
+      appearance: track.appearance,
     })),
   };
 }
@@ -194,7 +202,11 @@ function matchCost(track: WorkingTrack, detection: Detection, time: number, conf
   if (distance > config.maximumCenterDistance) return null;
   const overlap = intersectionOverUnion(predicted, detection.box);
   const direction = directionPenalty(track, detection.box);
-  return (1 - overlap) * 0.5 + Math.min(distance, 1) * 0.35 + direction * 0.15;
+  const spatialCost = (1 - overlap) * 0.5 + Math.min(distance, 1) * 0.35 + direction * 0.15;
+  const appearanceCost = compareAppearance(track.appearance, detection.appearance);
+  return appearanceCost === null
+    ? spatialCost
+    : spatialCost * (1 - config.appearanceWeight) + appearanceCost * config.appearanceWeight;
 }
 
 function predictBox(track: WorkingTrack, time: number): DetectionBox {
@@ -257,4 +269,6 @@ function averageConfidence(positions: Track["positions"]) {
 function validateConfig(config: TrackerConfig) {
   if (!Number.isInteger(config.lostWindowFrames) || config.lostWindowFrames < 0) throw new Error("lost window 必须是非负整数");
   if (!Number.isInteger(config.maxTracks) || config.maxTracks <= 0 || config.maxTracks > 30) throw new Error("主体数量上限必须是 1 到 30");
+  if (config.appearanceWeight < 0 || config.appearanceWeight > 1) throw new Error("外观权重必须在 0 到 1 之间");
+  if (config.appearanceEmaAlpha <= 0 || config.appearanceEmaAlpha > 1) throw new Error("外观 EMA 系数必须大于 0 且不超过 1");
 }

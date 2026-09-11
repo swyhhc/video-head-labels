@@ -57,6 +57,18 @@ export function calculateLetterbox(
   };
 }
 
+export function videoBoxToLetterbox(
+  box: Detection["box"],
+  transform: LetterboxTransform,
+) {
+  return {
+    x: box.x * transform.scale + transform.padX,
+    y: box.y * transform.scale + transform.padY,
+    width: box.width * transform.scale,
+    height: box.height * transform.scale,
+  };
+}
+
 export function decodeYoloOutput(
   data: Float32Array,
   dims: readonly number[],

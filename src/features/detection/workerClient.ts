@@ -54,7 +54,7 @@ export class DetectionWorkerClient {
     } else if (response.type === "initialized") {
       request.resolve(response.metrics);
     } else {
-      request.resolve({ detections: response.detections, inferenceMs: response.inferenceMs, maxConfidence: response.maxConfidence });
+      request.resolve({ detections: response.detections, inferenceMs: response.inferenceMs, appearanceMs: response.appearanceMs, maxConfidence: response.maxConfidence });
     }
   };
 

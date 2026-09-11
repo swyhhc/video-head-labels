@@ -15,6 +15,7 @@ export interface Track {
   confidence: number;
   lifecycle: TrackLifecycle;
   positions: TrackPosition[];
+  appearance?: readonly number[];
 }
 
 export interface TrackedObservation extends Detection {
@@ -38,6 +39,8 @@ export interface TrackerConfig {
   maxTracks: number;
   maximumCenterDistance: number;
   maximumMatchCost: number;
+  appearanceWeight: number;
+  appearanceEmaAlpha: number;
 }
 
 export interface UserTrackSettings {

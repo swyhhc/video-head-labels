@@ -2,9 +2,11 @@
 
 import * as ort from "onnxruntime-web/webgpu";
 
-import { calculateLetterbox, decodeYoloOutput, YOLO_MODEL } from "../features/detection/browserDetector";
+import { calculateLetterbox, decodeYoloOutput, videoBoxToLetterbox, YOLO_MODEL } from "../features/detection/browserDetector";
 import type { DetectionBackend, MemoryObservation } from "../features/detection/types";
 import type { DetectionWorkerRequest, DetectionWorkerResponse } from "../features/detection/workerProtocol";
+import { extractAppearance } from "../features/tracking/appearance";
+import { TRACKER_CONFIG } from "../features/tracking/config";
 
 let session: ort.InferenceSession | null = null;
 let backend: DetectionBackend | null = null;
@@ -72,17 +74,23 @@ self.addEventListener("message", async (event: MessageEvent<DetectionWorkerReque
     const inferenceMs = performance.now() - start;
     const tensor = output.output0;
     if (!(tensor.data instanceof Float32Array)) throw new Error("模型输出不是 Float32Array");
-    const detections = decodeYoloOutput(tensor.data, tensor.dims, transform).map((detection) => ({
+    const decoded = decodeYoloOutput(tensor.data, tensor.dims, transform);
+    const appearanceStart = performance.now();
+    const detections = decoded.map((detection, index) => ({
       ...detection,
       detectionId: `sample-${request.sampleIndex}-${detection.detectionId}`,
+      appearance: index < TRACKER_CONFIG.maxTracks
+        ? extractAppearance(pixels, canvas.width, canvas.height, videoBoxToLetterbox(detection.box, transform)) ?? undefined
+        : undefined,
     }));
+    const appearanceMs = performance.now() - appearanceStart;
     let maxConfidence = 0;
     for (let channel = 4; channel < 84; channel += 1) {
       for (let candidate = 0; candidate < (tensor.dims.at(-1) ?? 0); candidate += 1) {
         maxConfidence = Math.max(maxConfidence, tensor.data[channel * (tensor.dims.at(-1) ?? 0) + candidate]);
       }
     }
-    post({ type: "detected", requestId: request.requestId, detections, inferenceMs, maxConfidence });
+    post({ type: "detected", requestId: request.requestId, detections, inferenceMs, appearanceMs, maxConfidence });
   } catch (error) {
     post({ type: "failed", requestId: request.requestId, message: messageFor(error), backend });
   }

@@ -4,6 +4,7 @@ export interface DetectionFrame {
   time: number;
   detections: Detection[];
   inferenceMs?: number;
+  appearanceMs?: number;
 }
 
 export function buildSampleTimes(duration: number, intervalSeconds: number) {
