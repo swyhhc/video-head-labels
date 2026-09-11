@@ -48,6 +48,7 @@ export function VideoWorkspace() {
   const [trackSettings, setTrackSettings] = useState<UserTrackSettingsMap>({});
   const [pendingDeleteTrackId, setPendingDeleteTrackId] = useState<string>();
   const [editingTrackId, setEditingTrackId] = useState<string>();
+  const [isSubjectListExpanded, setIsSubjectListExpanded] = useState(false);
   const inspectionId = useRef(0);
   const analysisId = useRef(0);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -102,6 +103,7 @@ export function VideoWorkspace() {
     setMetadata(null);
     setError(undefined);
     setIsInspecting(false);
+    setIsSubjectListExpanded(false);
     resetAnalysisState();
   }
 
@@ -211,7 +213,18 @@ export function VideoWorkspace() {
           </div>
         </section>
         <aside className="flex h-full min-h-0 flex-col overflow-hidden border-l border-[#E8E8E5] bg-white p-4">
-          <h2 className="text-base font-semibold">主体列表</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold">主体列表</h2>
+            <button
+              type="button"
+              aria-expanded={isSubjectListExpanded}
+              aria-label={isSubjectListExpanded ? "收起主体列表" : "展开主体列表"}
+              onClick={() => setIsSubjectListExpanded((expanded) => !expanded)}
+              className="rounded-md px-2 py-1 text-xs text-[#777777] transition-colors hover:bg-[#F1F1EF] hover:text-[#171717]"
+            >
+              {isSubjectListExpanded ? "收起" : "展开"}
+            </button>
+          </div>
           <div className="mt-4 min-h-24 flex-1 overflow-hidden">
             {tracking.tracks.some((track) => !resolvedTrackSettings[track.trackId]?.deleted) ? (
               <ul className="h-full space-y-2 overflow-y-auto pr-1">
@@ -268,18 +281,22 @@ export function VideoWorkspace() {
               </div>
             )}
           </div>
-          <section className="mt-3 shrink-0 border-t border-[#E8E8E5] pt-3">
-            <h3 className="text-sm font-medium">视频信息</h3>
-            {isInspecting ? <p className="mt-3 text-xs text-[#777777]">正在读取本地视频信息…</p> : metadata ? <VideoInfo metadata={metadata} /> : <p className="mt-3 text-xs text-[#D94A4A]">{error ?? "无法读取视频信息"}</p>}
-          </section>
-          <AnalysisPanel
-            error={analysisError}
-            loadMetrics={loadMetrics}
-            onAnalyze={analyzeVideo}
-            progress={analysisProgress}
-            status={analysisStatus}
-            summary={summary}
-          />
+          {isSubjectListExpanded ? null : (
+            <>
+              <section className="mt-3 shrink-0 border-t border-[#E8E8E5] pt-3">
+                <h3 className="text-sm font-medium">视频信息</h3>
+                {isInspecting ? <p className="mt-3 text-xs text-[#777777]">正在读取本地视频信息…</p> : metadata ? <VideoInfo metadata={metadata} /> : <p className="mt-3 text-xs text-[#D94A4A]">{error ?? "无法读取视频信息"}</p>}
+              </section>
+              <AnalysisPanel
+                error={analysisError}
+                loadMetrics={loadMetrics}
+                onAnalyze={analyzeVideo}
+                progress={analysisProgress}
+                status={analysisStatus}
+                summary={summary}
+              />
+            </>
+          )}
         </aside>
       </div>
 
