@@ -11,6 +11,7 @@ import type { VideoMetadata, VideoSource } from "../../features/media/types";
 interface VideoStageProps {
   detections?: Detection[];
   metadata: VideoMetadata | null;
+  onTimeChange?: (time: number) => void;
   source: VideoSource;
   videoRef?: RefObject<HTMLVideoElement | null>;
 }
@@ -64,7 +65,7 @@ export function renderDetections(
   previewRenderer.render(context, subjects, { ...viewport, preset: "data" });
 }
 
-export function VideoStage({ detections = [], metadata, source, videoRef }: VideoStageProps) {
+export function VideoStage({ detections = [], metadata, onTimeChange, source, videoRef }: VideoStageProps) {
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -105,7 +106,7 @@ export function VideoStage({ detections = [], metadata, source, videoRef }: Vide
 
   return (
     <div ref={stageRef} className="relative h-full min-h-[420px] w-full overflow-hidden rounded-xl bg-black">
-      <video ref={videoRef} className="absolute inset-0 h-full w-full object-contain" src={source.objectUrl} controls playsInline />
+      <video ref={videoRef} className="absolute inset-0 h-full w-full object-contain" src={source.objectUrl} controls playsInline onTimeUpdate={(event) => onTimeChange?.(event.currentTarget.currentTime)} onSeeked={(event) => onTimeChange?.(event.currentTarget.currentTime)} />
       <canvas ref={canvasRef} aria-label="视频标签叠加层" className="pointer-events-none absolute inset-0 h-full w-full" />
     </div>
   );
