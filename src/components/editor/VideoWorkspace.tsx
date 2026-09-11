@@ -234,9 +234,16 @@ export function VideoWorkspace() {
                   const confirmingDelete = pendingDeleteTrackId === track.trackId;
                   const editing = editingTrackId === track.trackId;
                   return [(
-                    <li key={track.trackId} className="rounded-lg border border-[#E8E8E5] p-3 text-xs">
+                    <li
+                      key={track.trackId}
+                      className="rounded-lg border p-3 text-xs transition-colors"
+                      style={{
+                        backgroundColor: setting.visible ? "#FFFFFF" : "#ECECEA",
+                        borderColor: setting.visible ? "#E8E8E5" : "#D8D8D4",
+                      }}
+                    >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-medium">{setting.labelZh}</span>
+                        <span className={`font-medium ${setting.visible ? "text-[#171717]" : "text-[#777777]"}`}>{setting.labelZh}</span>
                         <span className="text-[#A3A3A3]">AI：{categoryLabel(track.category)} · {Math.round(track.confidence * 100)}%</span>
                       </div>
                       {editing ? (
