@@ -105,7 +105,7 @@ export function VideoStage({ detections = [], metadata, onTimeChange, source, vi
   }, [detections, metadata]);
 
   return (
-    <div ref={stageRef} className="relative h-full min-h-[420px] w-full overflow-hidden rounded-xl bg-black">
+    <div ref={stageRef} className="relative h-full min-h-0 w-full overflow-hidden rounded-xl bg-black">
       <video ref={videoRef} className="absolute inset-0 h-full w-full object-contain" src={source.objectUrl} controls playsInline onTimeUpdate={(event) => onTimeChange?.(event.currentTarget.currentTime)} onSeeked={(event) => onTimeChange?.(event.currentTarget.currentTime)} />
       <canvas ref={canvasRef} aria-label="视频标签叠加层" className="pointer-events-none absolute inset-0 h-full w-full" />
     </div>

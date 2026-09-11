@@ -159,8 +159,8 @@ export function VideoWorkspace() {
   if (!source) return <VideoDropzone error={error} onFile={loadFile} />;
 
   return (
-    <main className="flex min-h-screen flex-col bg-[#F7F7F5] text-[#171717]">
-      <header className="flex min-h-[76px] items-center justify-between border-b border-[#E8E8E5] bg-white px-6 lg:px-8">
+    <main className="flex h-dvh overflow-hidden flex-col bg-[#F7F7F5] text-[#171717]">
+      <header className="flex h-[76px] shrink-0 items-center justify-between border-b border-[#E8E8E5] bg-white px-6 lg:px-8">
         <div className="min-w-0">
           <div className="flex items-center gap-3">
             <h1 className="text-xl font-semibold tracking-[-0.02em]">视频头顶加字幕</h1>
@@ -174,30 +174,32 @@ export function VideoWorkspace() {
         </div>
       </header>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <section className="flex min-h-[420px] items-center justify-center bg-[#ECECEA] p-6 lg:p-8">
-          <div className="h-[min(62vh,720px)] w-full max-w-[1200px]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] overflow-hidden lg:grid-cols-[minmax(0,1fr)_300px] lg:grid-rows-1">
+        <section className="flex h-full min-h-0 overflow-hidden items-center justify-center bg-[#ECECEA] p-6 lg:p-8">
+          <div className="h-full min-h-0 w-full max-w-[1200px]">
             <VideoStage detections={visibleDetections} metadata={metadata} onTimeChange={setPlaybackTime} source={source} videoRef={videoRef} />
           </div>
         </section>
-        <aside className="border-l border-[#E8E8E5] bg-white p-6">
+        <aside className="flex h-full min-h-0 flex-col overflow-hidden border-l border-[#E8E8E5] bg-white p-6">
           <h2 className="text-base font-semibold">当前画面</h2>
-          {visibleDetections.length > 0 ? (
-            <ul className="mt-4 space-y-2">
-              {visibleDetections.map((detection) => (
-                <li key={detection.detectionId} className="flex items-center justify-between rounded-lg border border-[#E8E8E5] px-3 py-2 text-xs">
-                  <span>{detection.category === "person" ? "人物" : detection.category}</span>
-                  <span className="text-[#777777]">{Math.round(detection.confidence * 100)}%</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="mt-6 rounded-xl border border-[#E8E8E5] bg-[#FAFAF8] px-4 py-8 text-center">
-              <p className="text-sm text-[#777777]">{analysisStatus === "completed" ? "当前画面没有检测结果" : "尚未分析视频"}</p>
-              <p className="mt-2 text-xs leading-5 text-[#A3A3A3]">这里只显示模型真实检测到的主体</p>
-            </div>
-          )}
-          <section className="mt-5 border-t border-[#E8E8E5] pt-5">
+          <div className="mt-4 min-h-0 flex-1 overflow-hidden">
+            {visibleDetections.length > 0 ? (
+              <ul className="h-full space-y-2 overflow-y-auto pr-1">
+                {visibleDetections.map((detection) => (
+                  <li key={detection.detectionId} className="flex items-center justify-between rounded-lg border border-[#E8E8E5] px-3 py-2 text-xs">
+                    <span>{detection.category === "person" ? "人物" : detection.category}</span>
+                    <span className="text-[#777777]">{Math.round(detection.confidence * 100)}%</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="h-full rounded-xl border border-[#E8E8E5] bg-[#FAFAF8] px-4 py-4 text-left">
+                <p className="text-sm text-[#777777]">{analysisStatus === "completed" ? "当前画面没有检测结果" : "尚未分析视频"}</p>
+                <p className="mt-2 text-xs leading-5 text-[#A3A3A3]">这里只显示模型真实检测到的主体</p>
+              </div>
+            )}
+          </div>
+          <section className="mt-5 shrink-0 border-t border-[#E8E8E5] pt-5">
             <h3 className="text-sm font-medium">视频信息</h3>
             {isInspecting ? <p className="mt-3 text-xs text-[#777777]">正在读取本地视频信息…</p> : metadata ? <VideoInfo metadata={metadata} /> : <p className="mt-3 text-xs text-[#D94A4A]">{error ?? "无法读取视频信息"}</p>}
           </section>
@@ -212,7 +214,7 @@ export function VideoWorkspace() {
         </aside>
       </div>
 
-      <section className="min-h-[116px] border-t border-[#E8E8E5] bg-white px-6 py-5 lg:px-8">
+      <section className="h-[116px] shrink-0 border-t border-[#E8E8E5] bg-white px-6 py-5 lg:px-8">
         <div className="flex items-center justify-between text-xs text-[#A3A3A3]">
           <span>{formatDuration(playbackTime)}</span><span>{analysisStatus === "analyzing" ? `本地分析 ${analysisProgress.completed} / ${analysisProgress.total}` : analysisStatus === "completed" ? "本地分析完成" : "等待本地分析"}</span><span>{metadata ? formatDuration(metadata.duration) : "--:--"}</span>
         </div>
@@ -235,7 +237,7 @@ function AnalysisPanel({ error, loadMetrics, onAnalyze, progress, status, summar
   const busy = status === "loading" || status === "analyzing";
   const statusText = status === "loading" ? "正在 Worker 中加载模型…" : status === "analyzing" ? `正在分析 ${progress.completed} / ${progress.total}` : status === "completed" ? "分析完成" : status === "failed" ? "分析失败" : "模型尚未加载";
   return (
-    <section className="mt-5 border-t border-[#E8E8E5] pt-5">
+    <section className="mt-5 shrink-0 border-t border-[#E8E8E5] pt-5">
       <h3 className="text-sm font-medium">本地 AI 分析</h3>
       <p className="mt-2 text-xs leading-5 text-[#777777]">{statusText}</p>
       <button type="button" disabled={busy} onClick={() => onAnalyze("auto")} className="mt-3 w-full rounded-[10px] bg-[#6ED3CF] px-4 py-2.5 text-sm font-medium text-[#113B39] disabled:opacity-50">开始本地分析</button>
