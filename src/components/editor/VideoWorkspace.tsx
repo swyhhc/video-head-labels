@@ -6,6 +6,7 @@ import { createVideoSource } from "../../features/media/createVideoSource";
 import { inspectVideo } from "../../features/media/inspectVideo";
 import type { VideoMetadata, VideoSource } from "../../features/media/types";
 import { VideoDropzone } from "./VideoDropzone";
+import { VideoStage } from "./VideoStage";
 
 function formatBytes(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
@@ -72,7 +73,9 @@ export function VideoWorkspace() {
 
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px]">
         <section className="flex min-h-[420px] items-center justify-center bg-[#ECECEA] p-6 lg:p-8">
-          <video className="max-h-[calc(100vh-250px)] max-w-full rounded-xl bg-black object-contain" src={source.objectUrl} controls playsInline />
+          <div className="h-[min(62vh,720px)] w-full max-w-[1200px]">
+            <VideoStage metadata={metadata} source={source} />
+          </div>
         </section>
         <aside className="border-l border-[#E8E8E5] bg-white p-6">
           <h2 className="text-base font-semibold">主体</h2>
