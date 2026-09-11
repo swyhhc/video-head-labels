@@ -2,14 +2,15 @@
 
 import { useEffect, useRef, type RefObject } from "react";
 
-import type { Detection } from "../../features/detection/types";
 import { fitVideoContain, videoToScreenPoint } from "../../features/overlay/canvasCoordinates";
 import { LabelRenderer, type LabelDrawingContext } from "../../features/overlay/LabelRenderer";
+import { smoothPoint } from "../../features/overlay/labelSmoothing";
 import type { LabelSubject, Size } from "../../features/overlay/types";
 import type { VideoMetadata, VideoSource } from "../../features/media/types";
+import type { DisplayTrackObservation } from "../../features/tracking/trackStore";
 
 interface VideoStageProps {
-  detections?: Detection[];
+  observations?: DisplayTrackObservation[];
   metadata: VideoMetadata | null;
   onTimeChange?: (time: number) => void;
   source: VideoSource;
@@ -40,34 +41,45 @@ export function renderDevelopmentPreview(
   });
 }
 
-export function renderDetections(
+export function renderTrackedObservations(
   context: LabelDrawingContext,
-  detections: Detection[],
+  observations: DisplayTrackObservation[],
   video: Size,
   viewport: Size,
+  smoothedAnchors = new Map<string, { x: number; y: number }>(),
 ) {
   const videoRect = fitVideoContain(video, viewport);
-  const subjects: LabelSubject[] = detections.map((detection) => ({
-    id: detection.detectionId,
-    labelZh: detection.category === "person" ? "人物" : detection.category,
-    labelEn: detection.category,
-    category: detection.category,
-    confidence: detection.confidence,
-    anchor: videoToScreenPoint(
+  const visibleTrackIds = new Set(observations.map((observation) => observation.trackId));
+  for (const trackId of smoothedAnchors.keys()) {
+    if (!visibleTrackIds.has(trackId)) smoothedAnchors.delete(trackId);
+  }
+  const subjects: LabelSubject[] = observations.map((observation) => {
+    const target = videoToScreenPoint(
       {
-        x: detection.box.x + detection.box.width / 2,
-        y: detection.box.y,
+        x: observation.box.x + observation.box.width / 2,
+        y: observation.box.y,
       },
       videoRect,
-    ),
-  }));
+    );
+    const anchor = smoothPoint(smoothedAnchors.get(observation.trackId) ?? null, target, 0.35);
+    smoothedAnchors.set(observation.trackId, anchor);
+    return {
+      id: observation.trackId,
+      labelZh: observation.labelZh,
+      labelEn: observation.labelEn || undefined,
+      category: observation.category,
+      confidence: observation.confidence,
+      anchor,
+    };
+  });
 
   previewRenderer.render(context, subjects, { ...viewport, preset: "data" });
 }
 
-export function VideoStage({ detections = [], metadata, onTimeChange, source, videoRef }: VideoStageProps) {
+export function VideoStage({ observations = [], metadata, onTimeChange, source, videoRef }: VideoStageProps) {
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const smoothedAnchorsRef = useRef(new Map<string, { x: number; y: number }>());
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -90,11 +102,12 @@ export function VideoStage({ detections = [], metadata, onTimeChange, source, vi
       context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
       context.clearRect(0, 0, bounds.width, bounds.height);
 
-      renderDetections(
+      renderTrackedObservations(
         context,
-        detections,
+        observations,
         { width: metadata.width, height: metadata.height },
         { width: bounds.width, height: bounds.height },
+        smoothedAnchorsRef.current,
       );
     }
 
@@ -102,7 +115,7 @@ export function VideoStage({ detections = [], metadata, onTimeChange, source, vi
     const observer = new ResizeObserver(drawOverlay);
     observer.observe(stage);
     return () => observer.disconnect();
-  }, [detections, metadata]);
+  }, [observations, metadata]);
 
   return (
     <div ref={stageRef} className="relative h-full min-h-0 w-full overflow-hidden rounded-xl bg-black">

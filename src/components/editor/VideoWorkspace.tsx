@@ -3,12 +3,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { DETECTION_CONFIG } from "../../features/detection/config";
-import { buildSampleTimes, detectionsForPlaybackTime, type DetectionFrame } from "../../features/detection/sampledVideoDetection";
+import { buildSampleTimes, type DetectionFrame } from "../../features/detection/sampledVideoDetection";
 import type { BackendPreference, DetectorLoadMetrics } from "../../features/detection/types";
 import type { DetectionWorkerClient } from "../../features/detection/workerClient";
 import { createVideoSource } from "../../features/media/createVideoSource";
 import { inspectVideo } from "../../features/media/inspectVideo";
 import type { VideoMetadata, VideoSource } from "../../features/media/types";
+import {
+  applyUserTrackSettings,
+  categoryLabel,
+  createUserTrackSettings,
+  updateUserTrackSettings,
+  type UserTrackSettingsMap,
+} from "../../features/tracking/trackStore";
+import { observationsForPlaybackTime, trackDetectionFrames } from "../../features/tracking/tracker";
 import { VideoDropzone } from "./VideoDropzone";
 import { VideoStage } from "./VideoStage";
 
@@ -37,14 +45,25 @@ export function VideoWorkspace() {
   const [analysisProgress, setAnalysisProgress] = useState({ completed: 0, total: 0 });
   const [loadMetrics, setLoadMetrics] = useState<DetectorLoadMetrics | null>(null);
   const [summary, setSummary] = useState<AnalysisSummary | null>(null);
+  const [trackSettings, setTrackSettings] = useState<UserTrackSettingsMap>({});
+  const [pendingDeleteTrackId, setPendingDeleteTrackId] = useState<string>();
+  const [editingTrackId, setEditingTrackId] = useState<string>();
   const inspectionId = useRef(0);
   const analysisId = useRef(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const workerClientRef = useRef<DetectionWorkerClient | null>(null);
 
-  const visibleDetections = useMemo(
-    () => detectionsForPlaybackTime(frames, playbackTime, DETECTION_CONFIG.sampleIntervalSeconds),
-    [frames, playbackTime],
+  const tracking = useMemo(() => trackDetectionFrames(frames), [frames]);
+  const resolvedTrackSettings = useMemo(
+    () => createUserTrackSettings(tracking.tracks, trackSettings),
+    [tracking.tracks, trackSettings],
+  );
+  const visibleObservations = useMemo(
+    () => applyUserTrackSettings(
+      observationsForPlaybackTime(tracking.frames, playbackTime, DETECTION_CONFIG.sampleIntervalSeconds),
+      resolvedTrackSettings,
+    ),
+    [playbackTime, resolvedTrackSettings, tracking.frames],
   );
 
   useEffect(() => {
@@ -100,6 +119,17 @@ export function VideoWorkspace() {
     setAnalysisProgress({ completed: 0, total: 0 });
     setLoadMetrics(null);
     setSummary(null);
+    setTrackSettings({});
+    setPendingDeleteTrackId(undefined);
+    setEditingTrackId(undefined);
+  }
+
+  function updateTrack(trackId: string, patch: Parameters<typeof updateUserTrackSettings>[2]) {
+    setTrackSettings((current) => updateUserTrackSettings(
+      createUserTrackSettings(tracking.tracks, current),
+      trackId,
+      patch,
+    ));
   }
 
   async function analyzeVideo(preference: BackendPreference = "auto") {
@@ -177,25 +207,64 @@ export function VideoWorkspace() {
       <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] overflow-hidden lg:grid-cols-[minmax(0,1fr)_300px] lg:grid-rows-1">
         <section className="flex h-full min-h-0 overflow-hidden items-center justify-center bg-[#ECECEA] p-6 lg:p-8">
           <div className="h-full min-h-0 w-full max-w-[1200px]">
-            <VideoStage detections={visibleDetections} metadata={metadata} onTimeChange={setPlaybackTime} source={source} videoRef={videoRef} />
+            <VideoStage observations={visibleObservations} metadata={metadata} onTimeChange={setPlaybackTime} source={source} videoRef={videoRef} />
           </div>
         </section>
         <aside className="flex h-full min-h-0 flex-col overflow-hidden border-l border-[#E8E8E5] bg-white p-4">
-          <h2 className="text-base font-semibold">当前画面</h2>
+          <h2 className="text-base font-semibold">主体列表</h2>
           <div className="mt-4 min-h-24 flex-1 overflow-hidden">
-            {visibleDetections.length > 0 ? (
+            {tracking.tracks.some((track) => !resolvedTrackSettings[track.trackId]?.deleted) ? (
               <ul className="h-full space-y-2 overflow-y-auto pr-1">
-                {visibleDetections.map((detection) => (
-                  <li key={detection.detectionId} className="flex items-center justify-between rounded-lg border border-[#E8E8E5] px-3 py-2 text-xs">
-                    <span>{detection.category === "person" ? "人物" : detection.category}</span>
-                    <span className="text-[#777777]">{Math.round(detection.confidence * 100)}%</span>
-                  </li>
-                ))}
+                {tracking.tracks.flatMap((track) => {
+                  const setting = resolvedTrackSettings[track.trackId];
+                  if (!setting || setting.deleted) return [];
+                  const confirmingDelete = pendingDeleteTrackId === track.trackId;
+                  const editing = editingTrackId === track.trackId;
+                  return [(
+                    <li key={track.trackId} className="rounded-lg border border-[#E8E8E5] p-3 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium">{setting.labelZh}</span>
+                        <span className="text-[#A3A3A3]">AI：{categoryLabel(track.category)} · {Math.round(track.confidence * 100)}%</span>
+                      </div>
+                      {editing ? (
+                        <div className="mt-2">
+                          <label className="block text-[#777777]">
+                            中文名称
+                            <input aria-label={`${setting.labelZh} 中文名称`} value={setting.labelZh} onChange={(event) => updateTrack(track.trackId, { labelZh: event.target.value })} className="mt-1 w-full rounded-md border border-[#E8E8E5] px-2 py-1.5 text-[#171717] outline-none focus:border-[#6ED3CF]" />
+                          </label>
+                          <label className="mt-2 block text-[#777777]">
+                            英文副标题（可选）
+                            <input aria-label={`${setting.labelZh} 英文副标题`} value={setting.labelEn} onChange={(event) => updateTrack(track.trackId, { labelEn: event.target.value })} className="mt-1 w-full rounded-md border border-[#E8E8E5] px-2 py-1.5 text-[#171717] outline-none focus:border-[#6ED3CF]" />
+                          </label>
+                        </div>
+                      ) : null}
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <button type="button" onClick={() => updateTrack(track.trackId, { visible: !setting.visible })} className="rounded-md border border-[#E8E8E5] px-2 py-1.5">
+                          {setting.visible ? "隐藏标签" : "显示标签"}
+                        </button>
+                        <button type="button" onClick={() => setEditingTrackId(editing ? undefined : track.trackId)} className="rounded-md border border-[#E8E8E5] px-2 py-1.5">
+                          {editing ? "完成编辑" : "编辑名称"}
+                        </button>
+                        <button type="button" onClick={() => {
+                          if (confirmingDelete) {
+                            updateTrack(track.trackId, { deleted: true });
+                            setPendingDeleteTrackId(undefined);
+                            if (editing) setEditingTrackId(undefined);
+                          } else {
+                            setPendingDeleteTrackId(track.trackId);
+                          }
+                        }} className="rounded-md border border-[#E8E8E5] px-2 py-1.5 text-[#B83232]">
+                          {confirmingDelete ? "确认删除" : "删除主体"}
+                        </button>
+                      </div>
+                    </li>
+                  )];
+                })}
               </ul>
             ) : (
               <div className="h-full rounded-xl border border-[#E8E8E5] bg-[#FAFAF8] px-4 py-4 text-left">
-                <p className="text-sm text-[#777777]">{analysisStatus === "completed" ? "当前画面没有检测结果" : "尚未分析视频"}</p>
-                <p className="mt-2 text-xs leading-5 text-[#A3A3A3]">这里只显示模型真实检测到的主体</p>
+                <p className="text-sm text-[#777777]">{analysisStatus === "completed" ? "没有可显示的主体" : "尚未分析视频"}</p>
+                <p className="mt-2 text-xs leading-5 text-[#A3A3A3]">这里只显示模型真实检测并关联出的主体</p>
               </div>
             )}
           </div>
