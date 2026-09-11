@@ -47,6 +47,7 @@ export interface UserTrackSettings {
   trackId: string;
   labelZh: string;
   labelEn: string;
+  nameEdited: boolean;
   visible: boolean;
   deleted: boolean;
 }

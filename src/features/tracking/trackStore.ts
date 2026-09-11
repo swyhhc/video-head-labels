@@ -24,6 +24,7 @@ export function createUserTrackSettings(
       trackId: track.trackId,
       labelZh: categoryTotals.get(track.category)! > 1 ? `${categoryName} ${index}` : categoryName,
       labelEn: "",
+      nameEdited: false,
       visible: true,
       deleted: false,
     };
@@ -39,7 +40,54 @@ export function updateUserTrackSettings(
 ): UserTrackSettingsMap {
   const current = settings[trackId];
   if (!current) throw new Error(`找不到主体设置：${trackId}`);
-  return { ...settings, [trackId]: { ...current, ...patch, trackId } };
+  const nameEdited = patch.labelZh === undefined ? current.nameEdited : patch.nameEdited ?? true;
+  return { ...settings, [trackId]: { ...current, ...patch, nameEdited, trackId } };
+}
+
+export function updateManyUserTrackSettings(
+  settings: UserTrackSettingsMap,
+  trackIds: readonly string[],
+  patch: Partial<Omit<UserTrackSettings, "trackId">>,
+): UserTrackSettingsMap {
+  return trackIds.reduce(
+    (current, trackId) => updateUserTrackSettings(current, trackId, patch),
+    settings,
+  );
+}
+
+export function copyPreviousTrackName(
+  settings: UserTrackSettingsMap,
+  previousTrackId: string,
+  trackId: string,
+): UserTrackSettingsMap {
+  const previous = settings[previousTrackId];
+  if (!previous) throw new Error(`找不到上一主体设置：${previousTrackId}`);
+  return updateUserTrackSettings(settings, trackId, { labelZh: previous.labelZh });
+}
+
+export function nextTrackId(trackIds: readonly string[], currentTrackId: string) {
+  const index = trackIds.indexOf(currentTrackId);
+  return index >= 0 && index + 1 < trackIds.length ? trackIds[index + 1] : null;
+}
+
+export function autoNumberUserTrackSettings(
+  tracks: readonly Track[],
+  settings: UserTrackSettingsMap,
+): UserTrackSettingsMap {
+  const categoryIndexes = new Map<string, number>();
+  let next = settings;
+  for (const track of tracks) {
+    const setting = next[track.trackId];
+    if (!setting || setting.deleted) continue;
+    const index = (categoryIndexes.get(track.category) ?? 0) + 1;
+    categoryIndexes.set(track.category, index);
+    if (setting.nameEdited) continue;
+    next = updateUserTrackSettings(next, track.trackId, {
+      labelZh: `${categoryLabel(track.category)}${index}`,
+      nameEdited: false,
+    });
+  }
+  return next;
 }
 
 export function applyUserTrackSettings(

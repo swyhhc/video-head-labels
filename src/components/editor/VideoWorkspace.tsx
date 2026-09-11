@@ -11,8 +11,12 @@ import { inspectVideo } from "../../features/media/inspectVideo";
 import type { VideoMetadata, VideoSource } from "../../features/media/types";
 import {
   applyUserTrackSettings,
+  autoNumberUserTrackSettings,
   categoryLabel,
+  copyPreviousTrackName,
   createUserTrackSettings,
+  nextTrackId,
+  updateManyUserTrackSettings,
   updateUserTrackSettings,
   type UserTrackSettingsMap,
 } from "../../features/tracking/trackStore";
@@ -49,10 +53,15 @@ export function VideoWorkspace() {
   const [pendingDeleteTrackId, setPendingDeleteTrackId] = useState<string>();
   const [editingTrackId, setEditingTrackId] = useState<string>();
   const [isSubjectListExpanded, setIsSubjectListExpanded] = useState(false);
+  const [isBulkNaming, setIsBulkNaming] = useState(false);
+  const [selectedTrackIds, setSelectedTrackIds] = useState<Set<string>>(() => new Set());
+  const [bulkLabelZh, setBulkLabelZh] = useState("");
+  const [confirmAutoNumber, setConfirmAutoNumber] = useState(false);
   const inspectionId = useRef(0);
   const analysisId = useRef(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const workerClientRef = useRef<DetectionWorkerClient | null>(null);
+  const bulkNameInputRefs = useRef(new Map<string, HTMLInputElement>());
 
   const tracking = useMemo(() => trackDetectionFrames(frames), [frames]);
   const resolvedTrackSettings = useMemo(
@@ -66,6 +75,11 @@ export function VideoWorkspace() {
     ),
     [playbackTime, resolvedTrackSettings, tracking.frames],
   );
+  const listedTracks = useMemo(
+    () => tracking.tracks.filter((track) => !resolvedTrackSettings[track.trackId]?.deleted),
+    [resolvedTrackSettings, tracking.tracks],
+  );
+  const listedTrackIds = useMemo(() => listedTracks.map((track) => track.trackId), [listedTracks]);
 
   useEffect(() => {
     return () => {
@@ -124,6 +138,10 @@ export function VideoWorkspace() {
     setTrackSettings({});
     setPendingDeleteTrackId(undefined);
     setEditingTrackId(undefined);
+    setIsBulkNaming(false);
+    setSelectedTrackIds(new Set());
+    setBulkLabelZh("");
+    setConfirmAutoNumber(false);
   }
 
   function updateTrack(trackId: string, patch: Parameters<typeof updateUserTrackSettings>[2]) {
@@ -132,6 +150,44 @@ export function VideoWorkspace() {
       trackId,
       patch,
     ));
+  }
+
+  function toggleBulkNaming() {
+    const next = !isBulkNaming;
+    setIsBulkNaming(next);
+    setIsSubjectListExpanded(next);
+    setSelectedTrackIds(new Set());
+    setBulkLabelZh("");
+    setConfirmAutoNumber(false);
+    setEditingTrackId(undefined);
+  }
+
+  function toggleTrackSelection(trackId: string) {
+    setSelectedTrackIds((current) => {
+      const next = new Set(current);
+      if (next.has(trackId)) next.delete(trackId);
+      else next.add(trackId);
+      return next;
+    });
+  }
+
+  function updateSelected(patch: Parameters<typeof updateManyUserTrackSettings>[2]) {
+    setTrackSettings((current) => updateManyUserTrackSettings(
+      createUserTrackSettings(tracking.tracks, current),
+      [...selectedTrackIds],
+      patch,
+    ));
+  }
+
+  function focusNextBulkName(currentTrackId: string) {
+    const nextId = nextTrackId(listedTrackIds, currentTrackId);
+    if (!nextId) return;
+    requestAnimationFrame(() => {
+      const input = bulkNameInputRefs.current.get(nextId);
+      input?.scrollIntoView({ block: "nearest" });
+      input?.focus({ preventScroll: true });
+      input?.select();
+    });
   }
 
   async function analyzeVideo(preference: BackendPreference = "auto") {
@@ -213,27 +269,70 @@ export function VideoWorkspace() {
           </div>
         </section>
         <aside className="flex h-full min-h-0 flex-col overflow-hidden border-l border-[#E8E8E5] bg-white p-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold">主体列表</h2>
-            <button
-              type="button"
-              aria-expanded={isSubjectListExpanded}
-              aria-label={isSubjectListExpanded ? "收起主体列表" : "展开主体列表"}
-              onClick={() => setIsSubjectListExpanded((expanded) => !expanded)}
-              className="rounded-md px-2 py-1 text-xs text-[#777777] transition-colors hover:bg-[#F1F1EF] hover:text-[#171717]"
-            >
-              {isSubjectListExpanded ? "收起" : "展开"}
-            </button>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <h2 className="text-base font-semibold">主体列表</h2>
+              {isBulkNaming ? <span className="truncate text-xs text-[#288B87]">批量命名中</span> : null}
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                aria-pressed={isBulkNaming}
+                onClick={toggleBulkNaming}
+                className="rounded-md px-2 py-1 text-xs text-[#288B87] transition-colors hover:bg-[#E8F8F7]"
+              >
+                {isBulkNaming ? "退出批量命名" : "批量命名"}
+              </button>
+              <button
+                type="button"
+                aria-expanded={isSubjectListExpanded}
+                aria-label={isSubjectListExpanded ? "收起主体列表" : "展开主体列表"}
+                onClick={() => setIsSubjectListExpanded((expanded) => !expanded)}
+                className="rounded-md px-2 py-1 text-xs text-[#777777] transition-colors hover:bg-[#F1F1EF] hover:text-[#171717]"
+              >
+                {isSubjectListExpanded ? "收起" : "展开"}
+              </button>
+            </div>
           </div>
+          {isBulkNaming && listedTracks.length > 0 ? (
+            <div className="mt-3 shrink-0 rounded-lg border border-[#D9EFEE] bg-[#F3FBFA] p-2 text-xs">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="mr-auto text-[#777777]">已选 {selectedTrackIds.size} 个</span>
+                <button type="button" onClick={() => setSelectedTrackIds(new Set(listedTrackIds))} className="rounded-md border border-[#D9EFEE] bg-white px-2 py-1">全选当前列表</button>
+                <button type="button" onClick={() => setSelectedTrackIds(new Set())} className="rounded-md border border-[#D9EFEE] bg-white px-2 py-1">清空选择</button>
+              </div>
+              <div className="mt-2 flex gap-1.5">
+                <input aria-label="统一中文名称" value={bulkLabelZh} onChange={(event) => setBulkLabelZh(event.target.value)} placeholder="统一中文名称" className="min-w-0 flex-1 rounded-md border border-[#D9EFEE] bg-white px-2 py-1.5 outline-none focus:border-[#6ED3CF]" />
+                <button type="button" disabled={selectedTrackIds.size === 0 || bulkLabelZh.trim() === ""} onClick={() => updateSelected({ labelZh: bulkLabelZh.trim() })} className="rounded-md bg-[#6ED3CF] px-2 py-1.5 text-[#113B39] disabled:opacity-40">统一命名</button>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <button type="button" disabled={selectedTrackIds.size === 0} onClick={() => updateSelected({ visible: true })} className="rounded-md border border-[#D9EFEE] bg-white px-2 py-1 disabled:opacity-40">批量显示</button>
+                <button type="button" disabled={selectedTrackIds.size === 0} onClick={() => updateSelected({ visible: false })} className="rounded-md border border-[#D9EFEE] bg-white px-2 py-1 disabled:opacity-40">批量隐藏</button>
+                <button type="button" onClick={() => {
+                  if (confirmAutoNumber) {
+                    setTrackSettings((current) => autoNumberUserTrackSettings(
+                      listedTracks,
+                      createUserTrackSettings(tracking.tracks, current),
+                    ));
+                    setConfirmAutoNumber(false);
+                  } else {
+                    setConfirmAutoNumber(true);
+                  }
+                }} className="rounded-md border border-[#D9EFEE] bg-white px-2 py-1 text-[#288B87]">
+                  {confirmAutoNumber ? "确认自动编号" : "按类别自动编号"}
+                </button>
+              </div>
+            </div>
+          ) : null}
           <div className="mt-4 min-h-24 flex-1 overflow-hidden">
-            {tracking.tracks.some((track) => !resolvedTrackSettings[track.trackId]?.deleted) ? (
+            {listedTracks.length > 0 ? (
               <ul className="h-full space-y-2 overflow-y-auto pr-1">
-                {tracking.tracks.flatMap((track) => {
+                {listedTracks.map((track, trackIndex) => {
                   const setting = resolvedTrackSettings[track.trackId];
-                  if (!setting || setting.deleted) return [];
                   const confirmingDelete = pendingDeleteTrackId === track.trackId;
                   const editing = editingTrackId === track.trackId;
-                  return [(
+                  const previousTrack = listedTracks[trackIndex - 1];
+                  return (
                     <li
                       key={track.trackId}
                       className="rounded-lg border p-3 text-xs transition-colors"
@@ -243,10 +342,48 @@ export function VideoWorkspace() {
                       }}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className={`font-medium ${setting.visible ? "text-[#171717]" : "text-[#777777]"}`}>{setting.labelZh}</span>
+                        {isBulkNaming ? (
+                          <label className="flex items-center gap-2 font-medium text-[#171717]">
+                            <input type="checkbox" aria-label={`选择 ${setting.labelZh}`} checked={selectedTrackIds.has(track.trackId)} onChange={() => toggleTrackSelection(track.trackId)} className="accent-[#6ED3CF]" />
+                            <span className={setting.visible ? "" : "text-[#777777]"}>{setting.labelZh}</span>
+                          </label>
+                        ) : <span className={`font-medium ${setting.visible ? "text-[#171717]" : "text-[#777777]"}`}>{setting.labelZh}</span>}
                         <span className="text-[#A3A3A3]">AI：{categoryLabel(track.category)} · {Math.round(track.confidence * 100)}%</span>
                       </div>
-                      {editing ? (
+                      {isBulkNaming ? (
+                        <div className="mt-2 space-y-2">
+                          <div className="flex items-end gap-1.5">
+                            <label className="min-w-0 flex-1 text-[#777777]">
+                              中文名称
+                              <input
+                                ref={(node) => { if (node) bulkNameInputRefs.current.set(track.trackId, node); else bulkNameInputRefs.current.delete(track.trackId); }}
+                                aria-label={`${track.trackId} 中文名称`}
+                                value={setting.labelZh}
+                                onChange={(event) => updateTrack(track.trackId, { labelZh: event.target.value })}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                                    event.preventDefault();
+                                    focusNextBulkName(track.trackId);
+                                  }
+                                }}
+                                className="mt-1 w-full rounded-md border border-[#E8E8E5] bg-white px-2 py-1.5 text-[#171717] outline-none focus:border-[#6ED3CF]"
+                              />
+                            </label>
+                            <button type="button" disabled={!previousTrack} onClick={() => {
+                              if (!previousTrack) return;
+                              setTrackSettings((current) => copyPreviousTrackName(
+                                createUserTrackSettings(tracking.tracks, current),
+                                previousTrack.trackId,
+                                track.trackId,
+                              ));
+                            }} className="mb-px rounded-md border border-[#E8E8E5] bg-white px-2 py-1.5 text-[#777777] disabled:opacity-30">同上</button>
+                          </div>
+                          <label className="block text-[#777777]">
+                            英文副标题（可选）
+                            <input aria-label={`${track.trackId} 英文副标题`} value={setting.labelEn} onChange={(event) => updateTrack(track.trackId, { labelEn: event.target.value })} className="mt-1 w-full rounded-md border border-[#E8E8E5] bg-white px-2 py-1.5 text-[#171717] outline-none focus:border-[#6ED3CF]" />
+                          </label>
+                        </div>
+                      ) : editing ? (
                         <div className="mt-2">
                           <label className="block text-[#777777]">
                             中文名称
@@ -262,13 +399,16 @@ export function VideoWorkspace() {
                         <button type="button" onClick={() => updateTrack(track.trackId, { visible: !setting.visible })} className="rounded-md border border-[#E8E8E5] px-2 py-1.5">
                           {setting.visible ? "隐藏标签" : "显示标签"}
                         </button>
-                        <button type="button" onClick={() => setEditingTrackId(editing ? undefined : track.trackId)} className="rounded-md border border-[#E8E8E5] px-2 py-1.5">
-                          {editing ? "完成编辑" : "编辑名称"}
-                        </button>
+                        {isBulkNaming ? null : <button type="button" onClick={() => setEditingTrackId(editing ? undefined : track.trackId)} className="rounded-md border border-[#E8E8E5] px-2 py-1.5">{editing ? "完成编辑" : "编辑名称"}</button>}
                         <button type="button" onClick={() => {
                           if (confirmingDelete) {
                             updateTrack(track.trackId, { deleted: true });
                             setPendingDeleteTrackId(undefined);
+                            setSelectedTrackIds((current) => {
+                              const next = new Set(current);
+                              next.delete(track.trackId);
+                              return next;
+                            });
                             if (editing) setEditingTrackId(undefined);
                           } else {
                             setPendingDeleteTrackId(track.trackId);
@@ -278,7 +418,7 @@ export function VideoWorkspace() {
                         </button>
                       </div>
                     </li>
-                  )];
+                  );
                 })}
               </ul>
             ) : (
