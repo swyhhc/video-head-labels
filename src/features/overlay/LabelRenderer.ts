@@ -2,13 +2,13 @@ import { getLabelLines, layoutLabels } from "./labelLayout";
 import type { LabelLine, LabelPreset, LabelSubject, Size } from "./types";
 
 export interface LabelDrawingContext {
-  fillStyle: string;
+  fillStyle: string | CanvasGradient | CanvasPattern;
   font: string;
   globalAlpha: number;
   lineWidth: number;
   shadowBlur: number;
   shadowColor: string;
-  strokeStyle: string;
+  strokeStyle: string | CanvasGradient | CanvasPattern;
   textAlign: CanvasTextAlign;
   textBaseline: CanvasTextBaseline;
   beginPath(): void;

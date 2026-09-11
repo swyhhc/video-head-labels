@@ -9,6 +9,8 @@ interface NativeVideoMetadata {
 
 type MetadataLoader = (file: File) => Promise<NativeVideoMetadata>;
 
+const CODEC_PROBE_BYTES = 512 * 1024;
+
 function detectContainer(file: File): VideoContainer {
   const name = file.name.toLowerCase();
   if (name.endsWith(".mov") || file.type === "video/quicktime") return "mov";
@@ -17,8 +19,18 @@ function detectContainer(file: File): VideoContainer {
 }
 
 async function detectCodec(file: File): Promise<VideoCodec> {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const signature = new TextDecoder("latin1").decode(bytes);
+  // MP4/MOV sample descriptions may live outside these bounded windows.
+  // In that case the safe result is unknown; full parsing belongs to a later phase.
+  const headEnd = Math.min(file.size, CODEC_PROBE_BYTES);
+  const tailStart = Math.max(headEnd, file.size - CODEC_PROBE_BYTES);
+  const [head, tail] = await Promise.all([
+    file.slice(0, headEnd).arrayBuffer(),
+    tailStart < file.size
+      ? file.slice(tailStart, file.size).arrayBuffer()
+      : Promise.resolve(new ArrayBuffer(0)),
+  ]);
+  const decoder = new TextDecoder("latin1");
+  const signature = `${decoder.decode(head)}${decoder.decode(tail)}`;
 
   if (signature.includes("hvc1") || signature.includes("hev1")) return "hevc";
   if (signature.includes("avc1") || signature.includes("avc3")) return "h264";

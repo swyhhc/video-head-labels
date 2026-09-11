@@ -55,6 +55,22 @@ describe("inspectVideo", () => {
     expect(result.compatibility).toBe("unknown");
   });
 
+  it("probes bounded file slices instead of copying the complete video", async () => {
+    const chunk = new Uint8Array(600 * 1024);
+    const file = new File([chunk, chunk, "hvc1"], "large.mov", {
+      type: "video/quicktime",
+    });
+    Object.defineProperty(file, "arrayBuffer", {
+      value: () => {
+        throw new Error("whole-file read is not allowed");
+      },
+    });
+
+    const result = await inspectVideo(file, loadMetadata);
+
+    expect(result.codec).toBe("hevc");
+  });
+
   it("reports configured duration and resolution limits", async () => {
     const result = await inspectVideo(
       localVideo("large.mp4", "video/mp4", "avc1"),

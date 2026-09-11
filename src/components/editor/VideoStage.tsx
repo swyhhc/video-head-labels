@@ -3,11 +3,37 @@
 import { useEffect, useRef } from "react";
 
 import { fitVideoContain, videoToScreenPoint } from "../../features/overlay/canvasCoordinates";
+import { LabelRenderer, type LabelDrawingContext } from "../../features/overlay/LabelRenderer";
+import type { LabelSubject, Size } from "../../features/overlay/types";
 import type { VideoMetadata, VideoSource } from "../../features/media/types";
 
 interface VideoStageProps {
   metadata: VideoMetadata | null;
   source: VideoSource;
+}
+
+const previewRenderer = new LabelRenderer();
+
+export function renderDevelopmentPreview(
+  context: LabelDrawingContext,
+  video: Size,
+  viewport: Size,
+) {
+  const videoRect = fitVideoContain(video, viewport);
+  const subject: LabelSubject = {
+    id: "development-preview",
+    labelZh: "开发预览",
+    labelEn: "Renderer 接线测试",
+    anchor: videoToScreenPoint(
+      { x: video.width / 2, y: video.height / 2 },
+      videoRect,
+    ),
+  };
+
+  previewRenderer.render(context, [subject], {
+    ...viewport,
+    preset: "classic",
+  });
 }
 
 export function VideoStage({ metadata, source }: VideoStageProps) {
@@ -35,28 +61,11 @@ export function VideoStage({ metadata, source }: VideoStageProps) {
       context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
       context.clearRect(0, 0, bounds.width, bounds.height);
 
-      const videoRect = fitVideoContain(
+      renderDevelopmentPreview(
+        context,
         { width: metadata.width, height: metadata.height },
         { width: bounds.width, height: bounds.height },
       );
-      const center = videoToScreenPoint(
-        { x: metadata.width / 2, y: metadata.height / 2 },
-        videoRect,
-      );
-
-      context.strokeStyle = "#6ED3CF";
-      context.fillStyle = "#6ED3CF";
-      context.lineWidth = 1.25;
-      context.beginPath();
-      context.moveTo(center.x, center.y - 28);
-      context.lineTo(center.x, center.y - 8);
-      context.stroke();
-      context.beginPath();
-      context.arc(center.x, center.y, 3.5, 0, Math.PI * 2);
-      context.fill();
-      context.font = '500 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-      context.textAlign = "center";
-      context.fillText("叠加层对齐", center.x, center.y - 34);
     }
 
     drawAlignmentMarker();
